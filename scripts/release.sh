@@ -15,14 +15,33 @@
 # Docker run.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+# Find the directory that holds manage.py. The script is invoked from three
+# different places — the repo root, the backend/ directory on Render (where
+# rootDir is set), and next to manage.py inside the container image — so the
+# path cannot be hardcoded relative to the caller's working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -f "${SCRIPT_DIR}/../backend/manage.py" ]; then
+  cd "${SCRIPT_DIR}/../backend"
+elif [ -f "${SCRIPT_DIR}/manage.py" ]; then
+  cd "${SCRIPT_DIR}"
+elif [ -f "./manage.py" ]; then
+  :
+else
+  echo "release.sh: could not find manage.py" >&2
+  exit 1
+fi
 
 PORT="${PORT:-8000}"
 WORKERS="${WEB_CONCURRENCY:-3}"
 TIMEOUT="${GUNICORN_TIMEOUT:-60}"
 
+echo "==> Working directory: $(pwd)"
+
 echo "==> Checking configuration"
-python manage.py check --deploy 2>&1 | grep -v "W001" || true
+# Deploy warnings go to stderr. A non-zero exit here would abort the deploy, so
+# report and continue: the operator reads them from the build log.
+python manage.py check --deploy --fail-level ERROR 2>&1 || true
 
 echo "==> Applying database migrations"
 python manage.py migrate --noinput

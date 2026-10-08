@@ -217,6 +217,14 @@ SPECTACULAR_SETTINGS = {
 # ---------------------------------------------------------------------------
 # CORS / CSRF
 # ---------------------------------------------------------------------------
+# Platform health checkers (Render, Fly, Kubernetes probes) connect straight to
+# the container and do not always send X-Forwarded-Proto. With
+# SECURE_SSL_REDIRECT on in production that would become a 301 and the deploy
+# would be marked unhealthy even though the app is fine. The endpoint returns no
+# user data, so answering it over plain HTTP exposes nothing. Inert outside
+# production because SECURE_SSL_REDIRECT is False there.
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]
+
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="http://localhost:5173", cast=Csv())
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="http://localhost:5173", cast=Csv())
 # SPA sends X-Request-ID. corsheaders defaults omit it, so browser preflight fails.

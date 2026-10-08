@@ -20,8 +20,10 @@ services:
     buildCommand: |
       pip install --upgrade pip
       pip install -r requirements/prod.txt
-      python manage.py collectstatic --noinput
     startCommand: bash ../scripts/release.sh
+    # release.sh runs migrations + collectstatic, then serves. Render polls this
+    # path to decide whether the new release is healthy. It must answer on plain
+    # HTTP too, so it is exempted from SECURE_SSL_REDIRECT in settings.
     healthCheckPath: /api/v1/health/
     autoDeploy: true
     envVars:

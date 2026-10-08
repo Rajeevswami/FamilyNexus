@@ -20,6 +20,9 @@ X_FRAME_OPTIONS = "DENY"
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# SECURE_REDIRECT_EXEMPT (the health-check exemption) lives in base.py so the
+# test suite can assert it. It is inert while SECURE_SSL_REDIRECT is False.
+
 SENTRY_DSN = config("SENTRY_DSN", default="")
 
 if SENTRY_DSN:

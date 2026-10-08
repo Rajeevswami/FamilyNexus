@@ -6,6 +6,26 @@ Ye guide 8 October 2026 ke free tiers ke hisaab se likhi gayi hai.
 
 ---
 
+## Sabse pehle: 30-second summary
+
+Deploy ka **order** aisa hai — isse ulta karne pe errors aayenge:
+
+```
+1. Neon    → Postgres URL lo
+2. Upstash → Redis URL lo
+3. R2      → 4 keys lo
+4. Render  → Blueprint apply karo, upar ki keys daalo
+5. Render  → Static site ka VITE_API_BASE_URL set karo
+6. App     → signup karo, family banao
+7. UptimeRobot → service ko jagta rakho
+```
+
+**Kyun ye order?** Backend ko deploy karte waqt database, Redis aur storage ki keys **pehle se ready** honi chahiye — warna pehla deploy fail hoga aur aapko dobara karna padega.
+
+**Total time:** ~20 minute. **Kharcha:** ₹0.
+
+---
+
 ## 1. Free tools — kaun kya karega
 
 | Kaam | Free Tool | Free mein kya milta hai | Card chahiye? |
@@ -128,27 +148,92 @@ Ye step skip kar sakte ho, **lekin** tab har deploy pe uploads delete honge.
 
 ## 6. Backend deploy karo (Render) — 5 minute
 
-1. Code GitHub pe push karo (agar nahi kiya):
-   ```bash
-   git add . && git commit -m "deploy" && git push
-   ```
-2. <https://render.com> → GitHub se sign in → **New** → **Blueprint**
-3. Repo select karo. Render `render.yaml` padh ke dono services bana dega.
-4. Render jo values maange, ye daalo:
+### 6a. Code GitHub pe bhejo
 
-   | Key | Value |
-   | --- | --- |
-   | `DATABASE_URL` | Neon ka connection string (step 3) |
-   | `REDIS_URL` | Upstash ka `rediss://` URL (step 4) |
-   | `FIELD_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-   | `AWS_STORAGE_BUCKET_NAME` | `familynexus-media` |
-   | `AWS_ACCESS_KEY_ID` | R2 Access Key ID |
-   | `AWS_SECRET_ACCESS_KEY` | R2 Secret Access Key |
-   | `AWS_S3_ENDPOINT_URL` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
-   | `AWS_S3_REGION_NAME` | `auto` |
-   | `CORS_ALLOWED_ORIGINS` | `https://familynexus-web.onrender.com` |
-   | `CSRF_TRUSTED_ORIGINS` | `https://familynexus-web.onrender.com` |
-   | `FRONTEND_URL` | `https://familynexus-web.onrender.com` |
+```bash
+cd FamilyNexus
+git add .
+git commit -m "deploy to render"
+git push origin main
+```
+
+> Agar aap Arena branch pe ho (`arena/...`), to pehle PR merge karo ya `main` pe push karo — Render `main` branch se deploy karta hai.
+
+### 6b. Render pe Blueprint banao
+
+1. <https://render.com> kholo → **Get Started** → **GitHub** se sign in karo
+2. GitHub ko authorize karo (repo access do)
+3. Dashboard pe **New +** → **Blueprint**
+4. `Rajeevswami/FamilyNexus` repo select karo → **Connect**
+5. Render `render.yaml` padh lega aur **do services** dikhayega:
+   - `familynexus-api` (Python web service)
+   - `familynexus-web` (Static site)
+6. Blueprint ka naam: `familynexus` → **Apply**
+
+### 6c. Render jo values maangega, ye daalo
+
+Ye table copy karke rakh lo — Render ek-ek karke poochhega:
+
+| Key | Value | Kahan se |
+| --- | --- | --- |
+| `DATABASE_URL` | `postgresql://...neon.tech/neondb?sslmode=require` | Step 3 |
+| `REDIS_URL` | `rediss://default:...@...upstash.io:6379` | Step 4 |
+| `FIELD_ENCRYPTION_KEY` | Neeche command chalao | — |
+| `AWS_STORAGE_BUCKET_NAME` | `familynexus-media` | Step 5 |
+| `AWS_ACCESS_KEY_ID` | R2 Access Key ID | Step 5 |
+| `AWS_SECRET_ACCESS_KEY` | R2 Secret Access Key | Step 5 |
+| `AWS_S3_ENDPOINT_URL` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | Step 5 |
+| `AWS_S3_REGION_NAME` | `auto` | — |
+| `CORS_ALLOWED_ORIGINS` | `https://familynexus-web.onrender.com` | Render aapko URL dega |
+| `CSRF_TRUSTED_ORIGINS` | `https://familynexus-web.onrender.com` | same |
+| `FRONTEND_URL` | `https://familynexus-web.onrender.com` | same |
+
+**`FIELD_ENCRYPTION_KEY` banane ke liye:**
+```bash
+cd backend
+.venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Ye poori line copy karo: gAAAAAB...
+```
+
+> **Tip:** Render service URL pehle deploy ke baad milta hai (`familynexus-web.onrender.com`). Naam pehle se pata hai kyunki `render.yaml` mein wahi rakha hai. Agar Render naam badal de, to env vars baad mein update kar dena.
+
+### 6d. Pehla deploy (~5 minute)
+
+Render automatically:
+1. `pip install -r requirements/prod.txt` chalata hai
+2. `bash ../scripts/release.sh` chalata hai — jo migrations apply karta hai, static files collect karta hai, phir gunicorn start karta hai
+3. `/api/v1/health/` poll karta hai — 200 mile to "Live" ho jaata hai
+
+Deploy logs mein ye dikhna chahiye:
+```
+==> Checking configuration
+==> Applying database migrations
+  Applying accounts.0001_initial... OK
+  ...
+==> Collecting static files
+163 static files copied
+==> Starting gunicorn on port 10000 with 3 worker(s)
+```
+
+**Verify karo:**
+```bash
+curl https://familynexus-api.onrender.com/api/v1/health/
+# {"success":true,"data":{"status":"ok","database":"ok","cache":"ok"}}
+```
+
+| Key | Value |
+| --- | --- |
+| `DATABASE_URL` | Neon ka connection string (step 3) |
+| `REDIS_URL` | Upstash ka `rediss://` URL (step 4) |
+| `FIELD_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `AWS_STORAGE_BUCKET_NAME` | `familynexus-media` |
+| `AWS_ACCESS_KEY_ID` | R2 Access Key ID |
+| `AWS_SECRET_ACCESS_KEY` | R2 Secret Access Key |
+| `AWS_S3_ENDPOINT_URL` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `AWS_S3_REGION_NAME` | `auto` |
+| `CORS_ALLOWED_ORIGINS` | `https://familynexus-web.onrender.com` |
+| `CSRF_TRUSTED_ORIGINS` | `https://familynexus-web.onrender.com` |
+| `FRONTEND_URL` | `https://familynexus-web.onrender.com` |
 
 5. **Apply** dabao. Pehla deploy ~5 minute lega.
 
@@ -165,6 +250,23 @@ curl https://familynexus-api.onrender.com/api/v1/health/
 ```
 
 Teeno `"ok"` hone chahiye. `"cache":"error"` = REDIS_URL galat hai.
+`database":"error"` = `DATABASE_URL` galat hai, ya `?sslmode=require` missing hai.
+
+### `ALLOWED_HOSTS` ki galti se bacho
+
+Deploy ke baad agar log mein ye dikhe:
+```
+Invalid HTTP_HOST header: 'familynexus-api.onrender.com'.
+You may need to add 'familynexus-api.onrender.com' to ALLOWED_HOSTS.
+```
+
+To `ALLOWED_HOSTS` mein apna Render hostname daalo. Ya `render.yaml` jaisa `.onrender.com` likh do — **aage ka dot** mat bhoolna, isse har subdomain chalta hai:
+
+```
+ALLOWED_HOSTS=.onrender.com
+```
+
+Custom domain lagane ke baad `api.tumharadomain.com` bhi add karo, warna API 400 dega.
 
 ---
 
@@ -176,7 +278,20 @@ Teeno `"ok"` hone chahiye. `"cache":"error"` = REDIS_URL galat hai.
 | --- | --- |
 | `VITE_API_BASE_URL` | `https://familynexus-api.onrender.com/api/v1` |
 
-**Dhyan do:** ye **build time** pe bake hota hai. Value badli to **Manual Deploy → Clear build cache & deploy** karo, warna purani URL hi rahegi.
+Steps:
+1. Render dashboard → `familynexus-web` → **Environment**
+2. **Add Environment Variable** → `VITE_API_BASE_URL` = `https://familynexus-api.onrender.com/api/v1`
+3. **Manual Deploy** → **Clear build cache & deploy** ← ye zaroori hai
+
+> **Dhyan do:** `VITE_*` values **build time** pe JavaScript mein bake ho jaati hain. Sirf env var badalne se kuch nahi hoga — **clear build cache** wala deploy karna padega, warna purani URL hi rahegi.
+
+**Final check:**
+```bash
+curl -I https://familynexus-web.onrender.com
+# HTTP/2 200
+# content-security-policy: default-src 'self'; ...
+# x-frame-options: DENY
+```
 
 ---
 
@@ -281,7 +396,33 @@ echo ""   # 401 x10 ke baad 429 aana chahiye
 
 ---
 
-## 13. Kab paid pe jaana hai
+## 13. Common errors — turant fix
+
+| Error / Symptom | Matlab | Fix |
+| --- | --- | --- |
+| `Invalid HTTP_HOST header` | `ALLOWED_HOSTS` mein hostname nahi hai | `.onrender.com` daalo (leading dot ke saath) |
+| `database":"error"` in health | `DATABASE_URL` galat ya SSL missing | `?sslmode=require` add karo |
+| `cache":"error"` in health | `REDIS_URL` galat / `redis://` vs `rediss://` | Upstash wala `rediss://` use karo (do `s`) |
+| Login pe 500 error | Redis down hai | `REDIS_URL` check karo. Redis ke bina login kaam nahi karta |
+| Deploy "unhealthy" | Health check 301 redirect kha raha hai | Code mein already fix hai (`SECURE_REDIRECT_EXEMPT`) |
+| Frontend purani API ko call kar raha | `VITE_API_BASE_URL` build-time pe bake hota hai | **Clear build cache & deploy** |
+| CORS error browser mein | `CORS_ALLOWED_ORIGINS` mein frontend URL nahi | Exact origin daalo, no trailing slash |
+| 403 on POST (CSRF) | `CSRF_TRUSTED_ORIGINS` missing | Frontend URL daalo `https://` ke saath |
+| Uploads deploy ke baad gayab | `AWS_*` keys set nahi | Step 5 karo (R2) |
+| Rate limit 403 dikh raha | Purana code | Latest code pull karo — ab 429 aata hai |
+| `provider_not_configured` | Stripe/Razorpay keys nahi hain | Normal hai. Manual billing chalta hai |
+
+### Neon se connect nahi ho raha?
+
+Neon ka URL `?sslmode=require` ke saath aata hai. Copy karte waqt ye suffix **kaata mat**. Agar password mein `@` ya `#` jaise special characters hain, to unhe URL-encode karna padega.
+
+### Deploy ke baad pehla request slow (30-60 sec)
+
+Render free instance so gaya tha. Ye normal hai — UptimeRobot (step 10) laga do.
+
+---
+
+## 14. Kab paid pe jaana hai
 
 Free tier demo, testing aur personal family ke liye theek hai. Real users aa jaayein to:
 
@@ -296,7 +437,7 @@ Free tier demo, testing aur personal family ke liye theek hai. Real users aa jaa
 
 ---
 
-## 14. Aage kya baaki hai
+## 15. Aage kya baaki hai
 
 Ye cheezein deployment ke liye zaroori nahi, par launch se pehle dekh lo:
 

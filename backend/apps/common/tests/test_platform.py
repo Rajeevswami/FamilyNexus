@@ -139,3 +139,13 @@ def test_security_headers_present_on_every_response():
     assert response["X-Frame-Options"] == "DENY"
     assert response["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert response["Cross-Origin-Opener-Policy"] == "same-origin"
+
+
+def test_health_endpoint_is_exempt_from_the_https_redirect():
+    """Platform health checkers hit the container directly, often over plain
+    HTTP and without X-Forwarded-Proto. If SECURE_SSL_REDIRECT turns that into
+    a 301 the deploy is marked unhealthy even though the app is fine.
+    """
+    from django.conf import settings
+
+    assert r"^api/v1/health/$" in settings.SECURE_REDIRECT_EXEMPT
