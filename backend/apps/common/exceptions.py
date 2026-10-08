@@ -16,6 +16,11 @@ from rest_framework.views import exception_handler as drf_exception_handler
 logger = logging.getLogger("apps.errors")
 
 
+# Seconds a client should wait before retrying a login/register style endpoint.
+# Only used to fill Retry-After; the real window is enforced by the cache key.
+RATELIMIT_RETRY_AFTER_SECONDS = 60
+
+
 class ApplicationError(Exception):
     """Base class for domain-level errors raised inside services."""
 
@@ -32,6 +37,33 @@ def custom_exception_handler(exc, context):
             {"success": False, "message": exc.message, "errors": {"code": exc.code}},
             status=exc.status_code,
         )
+
+    # django-ratelimit raises Ratelimited, which subclasses Django's
+    # PermissionDenied. DRF therefore turns it into a 403, hiding the real
+    # cause from clients and from logs. Translate it to a proper 429 with
+    # Retry-After before DRF can reinterpret it. 403 means "you may never
+    # do this"; 429 means "you may, just not this often".
+    try:
+        from django_ratelimit.exceptions import Ratelimited
+    except ImportError:  # pragma: no cover - ratelimit is a hard dependency
+        Ratelimited = None
+
+    if Ratelimited is not None and isinstance(exc, Ratelimited):
+        logger.warning(
+            "Rate limit hit on %s for %s",
+            context.get("view"),
+            context.get("request").META.get("REMOTE_ADDR") if context.get("request") else "?",
+        )
+        response = Response(
+            {
+                "success": False,
+                "message": "Too many requests. Please try again shortly.",
+                "errors": {"code": "rate_limited"},
+            },
+            status=429,
+        )
+        response["Retry-After"] = str(RATELIMIT_RETRY_AFTER_SECONDS)
+        return response
 
     if isinstance(exc, Http404):
         exc = drf_exceptions.NotFound()

@@ -12,6 +12,8 @@ from decouple import Csv, config
 
 from config import product
 
+from apps.common.storage import object_storage_settings
+
 PRODUCT_NAME = product.PRODUCT_NAME
 PRODUCT_SLUG = product.PRODUCT_SLUG
 PRODUCT_DOMAIN = product.PRODUCT_DOMAIN
@@ -265,6 +267,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Uploaded media goes to S3-compatible object storage when AWS_STORAGE_BUCKET_NAME
+# / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are set. Without them the local
+# disk is used, which is correct for development and for tests. On a container
+# platform with an ephemeral filesystem, leaving these unset means every
+# uploaded document and avatar is deleted on the next deploy — see
+# docs/DEPLOY_FREE.md.
+_object_storage = object_storage_settings(config)
+if _object_storage:
+    STORAGES = _object_storage
+    MEDIA_URL = config("AWS_MEDIA_URL", default=f"{MEDIA_URL}")
 
 # ---------------------------------------------------------------------------
 # Email — console backend for now; swapped to a real provider (SES/SendGrid/
