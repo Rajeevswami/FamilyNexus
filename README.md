@@ -100,6 +100,10 @@ App: http://localhost:5173/welcome
 
 The same split is documented in [docs/LAUNCH.md](docs/LAUNCH.md).
 
+## Deploy for free
+
+[docs/DEPLOY_FREE.md](docs/DEPLOY_FREE.md) walks through a ₹0/month stack — Render for the API and SPA, Neon for Postgres, Upstash for Redis, Cloudflare R2 for uploaded media — including the env vars to paste and the checks to run after the first deploy. `render.yaml` is a ready Blueprint.
+
 ## Tests
 
 ```bash

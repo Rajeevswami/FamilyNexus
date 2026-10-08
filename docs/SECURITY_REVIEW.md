@@ -11,6 +11,12 @@ This is a repository review, not a penetration test.
 - Telegram and WhatsApp webhooks require a configured secret.
 - Production settings keep secure cookies, HSTS, and `X-Frame-Options`. Sentry does not send default PII.
 - Cookie analytics stay off until an explicit choice.
+- `tenant_isolation_audit` reports no unscoped tenant models, and a cross-family read returns 404 rather than 403 so family ids are not confirmed.
+- Passwords are stored with Argon2id, not PBKDF2 or a weaker hash.
+- Login, register, and password-reset endpoints are rate limited. A tripped limit returns 429 with `Retry-After`, never 403, so clients back off instead of treating the request as permanently forbidden.
+- JSON API responses carry a strict `Content-Security-Policy` in production (`default-src 'none'`, `frame-ancestors 'none'`, PostHog the only allowed connect origin). Development and the Swagger/admin HTML pages are exempt because Vite and Django admin rely on inline scripts.
+- The SPA's nginx config sets CSP, HSTS, `X-Frame-Options`, a referrer policy, and immutable caching for hashed assets with `no-store` on the HTML shell.
+- Uploaded media moves to S3-compatible object storage when `AWS_*` credentials are present, so user documents are not sitting on an ephemeral container disk. A partial configuration logs an error instead of silently falling back.
 
 ## Still open
 

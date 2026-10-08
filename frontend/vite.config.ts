@@ -11,5 +11,20 @@ export default defineConfig({
     host: true,
     port: 5173,
     allowedHosts: true,
+    // In dev the browser only ever talks to this dev server (same origin).
+    // Requests under /api are proxied server-side to Django, so the app also
+    // works behind a remote preview host where "localhost:8000" is unreachable.
+    proxy: {
+      "/api": {
+        target: process.env.VITE_DEV_PROXY_TARGET ?? "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/media": {
+        target: process.env.VITE_DEV_PROXY_TARGET ?? "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 });
