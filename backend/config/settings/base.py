@@ -10,9 +10,8 @@ import dj_database_url
 from corsheaders.defaults import default_headers
 from decouple import Csv, config
 
-from config import product
-
 from apps.common.storage import object_storage_settings
+from config import product
 
 PRODUCT_NAME = product.PRODUCT_NAME
 PRODUCT_SLUG = product.PRODUCT_SLUG

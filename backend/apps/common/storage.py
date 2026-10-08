@@ -73,9 +73,7 @@ def object_storage_settings(env) -> dict:
 
     return {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
-        },
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
         "media": {
             "BACKEND": "storages.backends.s3.S3Storage",
             "OPTIONS": options,
